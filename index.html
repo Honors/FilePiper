@@ -1,207 +1,219 @@
-<script src="https://raw.github.com/LearnBoost/socket.io-client/master/dist/socket.io.min.js"></script>
-<script src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.js"></script>
-<style>
-	body {
-		padding: 0;margin: 0;
-	}
-	#box {
-		background: #00d6bd;
-	}
-	.square {
-		display: block;
-		position: relative;
-		width: 100%; 
-		height: 50%;
-		padding: 20px;
-		box-sizing: border-box;
-		color: white;
-		line-height: 60px;
-		box-sizing: border-box;		
-		padding: 10% 10px;
-		text-align: center;
-		font-size: 24px;
-		text-decoration: none;
-		font-family: Helvetica Neue, sans-serif;
-	}
-	#download {		
-		background: #d6004f;				
-	}
-</style>
-<a id="box" class="square">Drop File Here</a>
-<a id="download" class="square"></a>
-<script>		
-	var extend = function(base, ext) {
-		for( var k in ext ) {
-			base[k] = ext[k];
+<!DOCTYPE>
+<head>
+	<script src="https://raw.github.com/LearnBoost/socket.io-client/master/dist/socket.io.min.js"></script>
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.js"></script>
+	<link href='http://fonts.googleapis.com/css?family=Lobster' rel='stylesheet' type='text/css'>
+	<style>
+		body {
+			padding: 0;margin: 0;
+			overflow: none;
 		}
-	};
-	
-	/***********************
-	****************** Views
-	************************/
-	var DropView = function(el) {
-		extend(this, {
-			listen: function(evt, cb) {
-				el.bind(evt, cb);
-			}, update: function(content) {
-				el.text(content);
+		#box {
+			background: #636363;
+		}
+		.square {
+			display: block;
+			position: relative;
+			width: 100%; 
+			height: 50%;
+			padding: 20px;
+			box-sizing: border-box;
+			color: white;
+			line-height: 60px;
+			box-sizing: border-box;		
+			padding: 10% 10px;
+			text-align: center;
+			font-size: 45px;
+			text-decoration: none;
+			font-family: 'Lobster', cursive;
+		}
+		#download {		
+			background: #d6004f;				
+		}
+	</style>
+</head>
+<body>
+	<a id="box" class="square">Drop File Here</a>
+	<a id="download" class="square"></a>
+	<script>		
+		var extend = function(base, ext) {
+			for( var k in ext ) {
+				base[k] = ext[k];
 			}
-		});
-	};	
-	var DisplayView = function(el) {
-		extend(this, {
-			update: function(file) {
-				file.url && el.attr('href', file.url);
-				file.name && el.attr('download', file.name);
-				file.content && el.text(file.content);
-				file.content.match(/^Download/) && el.css('text-decoration', 'underline');
-			}
-		});	
-	};
-
-	/***********************
-	************ Controllers
-	************************/
-	var Sender = function(view, model) {			
-		// handle drag-n-drop
-		var socket = model.socket;
-		var channel = model.channel;
-		var buffer = [];
-		var chunkSize = 1024;	
-		var send = function(msg) {
-			socket.emit(channel, msg);
 		};
-		var endPoint = function(start, file) {
-			return start+chunkSize>file.size?file.size-1:start+chunkSize;
-		};
-		var readBlob = function(file, cb, opt_startByte, opt_stopByte) {
-			var start = opt_startByte || 0;
-			var end = opt_stopByte || endPoint(start, file);		
-			var reader = new FileReader();		
-			reader.onloadend = function(evt) {
-				if (evt.target.readyState == FileReader.DONE) {
-					var last = end==file.size-1;
-					var first = start==0;
-					cb(evt.target.result, first, last);	
-					view.update("Sent "+Math.ceil(100*end/file.size)+"%");	
-					if( end < file.size-1 ) {
-						// recurse
-						readBlob(file, cb, end+1, endPoint(end+1, file));
-					}
+		
+		/***********************
+		****************** Views
+		************************/
+		var DropView = function(el) {
+			extend(this, {
+				listen: function(evt, cb) {
+					el.bind(evt, cb);
+				}, update: function(content) {
+					el.text(content);
 				}
-			};		
-			var blob = file.slice(start, end + 1);
-			reader.readAsArrayBuffer(blob);				
-		};
-		var dropHandler = function(e) {    
-		    e.originalEvent.preventDefault();
-		    var file = e.originalEvent.dataTransfer.files[0];
-		    console.log(file.size);
-		    send({ state: 3, payload: {
-		    	size: file.size,
-		    	filename: file.name
-		    } });
-		    
-			readBlob(file, function(data, first, last) {
-				// send data
-				var buffer = [];
-				[].push.apply(buffer, new Uint8Array(data));
-				send({
-					state: last?2:(first?0:1), 
-					payload: buffer
-				});
 			});
+		};	
+		var DisplayView = function(el) {
+			extend(this, {
+				update: function(file) {
+					file.url && el.attr('href', file.url);
+					file.name && el.attr('download', file.name);
+					file.content && el.text(file.content);
+					file.content.match(/^Download/) && el.css('text-decoration', 'underline');
+				}
+			});	
 		};
-		extend(this, {
-			init: function() {
-				view.listen('drop', dropHandler);
-				return this;
-			}
-		});
-	};
-	var Saver = function(view, model) {		
-		// handle transmitted file
-		var socket = model.socket;
-		var channel = model.channel;
-		var buffer = [];
-		var size, filename;
-		var errorHandler = function(e) {
-			var errors = ["QUOTA_EXCEEDED", "NOT_FOUND", "SECURITY", "INVALID_MODIFICATION", "INVALID_STATE"].map(function(error) {
-				return e.code == FileError[error+"_ERR"] ? error : "";
-			});
-			console.log(errors.join(""));
-		};
-		var fileRespHandler = function(blob, cb) {
-			return function(fs) {
-				fs.root.getFile('log.txt', {create: true}, function(fileEntry) {
-					// Create a FileWriter object for our FileEntry (log.txt).
-					fileEntry.createWriter(function(fileWriter) {
-						fileWriter.onwriteend = cb;
-						fileWriter.onerror = cb;
-						fileWriter.write(blob);
-						console.log(fileEntry.toURL());
-						view.update({
-							url: fileEntry.toURL(),
-							name: filename,
-							content: "Download "+filename
-						});
-					}, errorHandler);
-				}, errorHandler);
+	
+		/***********************
+		************ Controllers
+		************************/
+		var Sender = function(view, model) {			
+			// handle drag-n-drop
+			var socket = model.socket;
+			var channel = model.channel;
+			var buffer = [];
+			var chunkSize = 4096;	
+			var send = function(msg) {
+				socket.emit(channel, msg);
 			};
-		};
-		var saveToFile = function(blob, cb) {
-			window.webkitRequestFileSystem(window.TEMPORARY, 1024*1024, fileRespHandler(blob, cb), errorHandler);
-		};
-		var bufferHandler = function(buffer) {
-			var arraybuffer = (new Uint8Array(buffer));
-			var blob = new Blob([arraybuffer], {type: 'text/plain'});
-			saveToFile(blob, function(e) {
-				console.log("saved");
+			var endPoint = function(start, file) {
+				return start+chunkSize>file.size?file.size-1:start+chunkSize;
+			};
+			var readBlob = function(file, cb, opt_startByte, opt_stopByte) {
+				var start = opt_startByte || 0;
+				var end = opt_stopByte || endPoint(start, file);		
+				var reader = new FileReader();		
+				reader.onloadend = function(evt) {
+					if (evt.target.readyState == FileReader.DONE) {
+						var last = end==file.size-1;
+						var first = start==0;
+						cb(evt.target.result, first, last);	
+						view.update("Sent "+Math.ceil(100*end/file.size)+"%");	
+						if( end < file.size-1 ) {
+							// recurse
+							setTimeout(function() {readBlob(file, cb, end+1, endPoint(end+1, file));}, 50);
+						}
+					}
+				};		
+				var blob = file.slice(start, end + 1);
+				reader.readAsArrayBuffer(blob);				
+			};
+			var dropHandler = function(e) {    
+			    e.originalEvent.preventDefault();
+			    var file = e.originalEvent.dataTransfer.files[0];
+			    console.log(file.size);
+			    send({ state: 3, payload: {
+			    	size: file.size,
+			    	filename: file.name
+			    } });
+			    
+				readBlob(file, function(data, first, last) {
+					// send data
+					var buffer = [];
+					[].push.apply(buffer, new Uint8Array(data));
+					send({
+						state: last?2:(first?0:1), 
+						payload: {
+							data: buffer,
+							filename: file.name
+						}
+					});
+				});
+			};
+			extend(this, {
+				init: function() {
+					view.listen('drop', dropHandler);
+					return this;
+				}
 			});
 		};
-		var packetHandler = function(msg) {
-			if( msg.state == 3 ) {
-				size = msg.payload.size;
-				filename = msg.payload.filename;
-			} else {
-				if( msg.state == 0 ) { // first
-					buffer = [];				
-				}
-				[].push.apply(buffer, msg.payload);			
-				view.update({
-					content: Math.ceil(buffer.length/size*100)+"% Received"
+		var Saver = function(view, model) {		
+			// handle transmitted file
+			var socket = model.socket;
+			var channel = model.channel;
+			var buffer = [];
+			var size, filename;
+			var errorHandler = function(e) {
+				var errors = ["QUOTA_EXCEEDED", "NOT_FOUND", "SECURITY", "INVALID_MODIFICATION", "INVALID_STATE"].map(function(error) {
+					return e.code == FileError[error+"_ERR"] ? error : "";
 				});
-				console.log(buffer.length);
-				if( msg.state == 2 ) { // last
-					bufferHandler(buffer);
+				console.log(errors.join(""));
+			};
+			var fileRespHandler = function(blob, cb) {
+				return function(fs) {
+					fs.root.getFile('log.txt', {create: true}, function(fileEntry) {
+						// Create a FileWriter object for our FileEntry (log.txt).
+						fileEntry.createWriter(function(fileWriter) {
+							fileWriter.onwriteend = cb;
+							fileWriter.onerror = cb;
+							fileWriter.write(blob);
+							console.log(fileEntry.toURL());
+							view.update({
+								url: fileEntry.toURL(),
+								name: filename,
+								content: "Download "+filename
+							});
+						}, errorHandler);
+					}, errorHandler);
+				};
+			};
+			var saveToFile = function(blob, cb) {
+				window.webkitRequestFileSystem(window.TEMPORARY, 1024*1024, fileRespHandler(blob, cb), errorHandler);
+			};
+			var bufferHandler = function(buffer) {
+				var arraybuffer = (new Uint8Array(buffer));
+				var blob = new Blob([arraybuffer], {type: 'text/plain'});
+				saveToFile(blob, function(e) {
+					console.log("saved");
+				});
+			};
+			var packetHandler = function(msg) {
+				if( msg.state == 3 ) {
+					size = msg.payload.size;
+					filename = msg.payload.filename;
+				} else if( msg.payload.filename == filename ) {
+					if( msg.state == 0 ) { // first
+						buffer = [];				
+					}
+					[].push.apply(buffer, msg.payload.data);			
+					view.update({
+						content: Math.ceil(buffer.length/size*100)+"% Received"
+					});
+					console.log(buffer.length);
+					if( msg.state == 2 ) { // last
+						bufferHandler(buffer);
+					}
+				} else {
+					console.error("Received extraneous data.", msg.payload.filename);
+				}			
+			};
+			extend(this, {
+				init: function() {
+					socket.on(channel, packetHandler);
+					socket.emit('initiate', { channel: channel });
+					return this;
 				}
-			}			
+			});
 		};
-		extend(this, {
-			init: function() {
-				socket.on(channel, packetHandler);
-				socket.emit('initiate', { channel: channel });
-				return this;
-			}
-		});
-	};
-	
-	/***********************
-	****************** Setup
-	************************/
-	(function() {
-		var socket = io.connect('http://localhost:8081', {
-			'reconnect': true,
-			'reconnection delay': 500,
-			'max reconnection attempts': 10
-		});
-		var sender = new Sender(new DropView($("#box")), {
-			channel: "abcd",
-			socket: socket
-		}).init();
-		var saver = new Saver(new DisplayView($("#download")), {
-			channel: "abcd",
-			socket: socket
-		}).init();
-	})();
-</script>
+		
+		/***********************
+		****************** Setup
+		************************/
+		(function() {
+			var socket = io.connect('http://filepiper.com:3015', {
+				'reconnect': true,
+				'reconnection delay': 500,
+				'max reconnection attempts': 10
+			});
+			var sender = new Sender(new DropView($("#box")), {
+				channel: "abcd",
+				socket: socket
+			}).init();
+			var saver = new Saver(new DisplayView($("#download")), {
+				channel: "abcd",
+				socket: socket
+			}).init();
+		})();
+	</script>
+</body>

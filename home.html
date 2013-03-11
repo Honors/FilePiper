@@ -1,7 +1,10 @@
 <!DOCTYPE>
 <html>
 	<head>
-		<title></title>
+		<title>FilePiper</title>
+		<link href='http://fonts.googleapis.com/css?family=Lobster' rel='stylesheet' type='text/css'>
+		<meta charset="utf-8">
+		<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="https://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
 	</head>
 	<body>
 		<style>
@@ -9,18 +12,29 @@
 				padding: 0;margin: 0;
 				font-family: sans-serif;	
 				color: white;	
+				overflow: none;
 			}	
+			#box h1 {
+				font-size: 45px;
+				font-family: 'Lobster', cursive;
+			}
+			#box h1 #tweet {
+				margin-left: 10px;
+			}
+			#box2 h2 {
+				font-family: 'Lobster', cursive;
+			}
 			#box, #box2 {
-				background: #00d6bd;		
+				background: #636363;		
 				position: relative;
 				width: 100%; 
 				height: 50%;
 				padding: 20px;
-				box-sizing: border-box;
+				box-sizing: border-box;				
 			}
 			#box2 {
 				background: #d6004f;
-			}			
+			}						
 			#box p, #box2 p {
 				width: 400px;
 				text-align: justify;
@@ -32,20 +46,33 @@
 				height: 40px;
 				font-size: 20px;
 			}
+			#box2 input.submit {
+				cursor: pointer;
+				padding-left: 10px;
+				padding-right: 10px;
+			}
 			#box2 #shortlink {
 				width: 430px;
 				padding: 0px 5px;				
 			}
+			#box p a {
+				color: #d6004f;
+				text-shadow: #f9e 0.05em 0.05em 0.05em;
+			}
 		</style>
 		<div id="box">
-		  <h1>filepiper.com</h1>
+		  <h1>Filepiper.com
+		  	<span id="tweet">
+		  		<a href="https://twitter.com/share" class="twitter-share-button" data-via="twitterapi" data-lang="en">Tweet</a>		  		
+		  	</span>
+		  </h1>
 		  <p>filepiper is a person-to-person file transporter based on the <a href="http://www.w3.org/TR/FileAPI/">HTML5 File API</a> and <a href="http://binaryjs.com/">BinaryJS</a> with a <a href="http://nodejs.org/">Node.js</a> backend. P2P file transfer cuts out the middle man and thus halves the transfer time. Broadcast files across a private session as if moving a file to a different folder.</p>
 		</div>
 		<div id="box2">
 			<h2>Start a Session</h2>
 			<form action="http://filepiper.com/95f324cd2e7f331f">
 				<input type="text" id="shortlink" value="http://filepiper.com/95f324cd2e7f331f">
-				<input type="submit" value="start!">
+				<input type="submit" value="start »" class="submit">
 			</form>
 			<p>Share this link by email, text, twitter or facebook. And use it everyday!</p>
 		</div>
