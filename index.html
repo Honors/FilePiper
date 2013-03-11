@@ -1,14 +1,34 @@
 <script src="https://raw.github.com/LearnBoost/socket.io-client/master/dist/socket.io.min.js"></script>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.js"></script>
 <style>
+	body {
+		padding: 0;margin: 0;
+	}
 	#box {
-		background: red;
-		width: 200px;
-		height: 200px;
+		background: #00d6bd;
+	}
+	.square {
+		display: block;
+		position: relative;
+		width: 100%; 
+		height: 50%;
+		padding: 20px;
+		box-sizing: border-box;
+		color: white;
+		line-height: 60px;
+		box-sizing: border-box;		
+		padding: 10% 10px;
+		text-align: center;
+		font-size: 24px;
+		text-decoration: none;
+		font-family: Helvetica Neue, sans-serif;
+	}
+	#download {		
+		background: #d6004f;				
 	}
 </style>
-<div id="box"></div>
-<a id="download"></a>
+<a id="box" class="square">Drop File Here</a>
+<a id="download" class="square"></a>
 <script>		
 	var extend = function(base, ext) {
 		for( var k in ext ) {
@@ -23,15 +43,18 @@
 		extend(this, {
 			listen: function(evt, cb) {
 				el.bind(evt, cb);
+			}, update: function(content) {
+				el.text(content);
 			}
 		});
 	};	
 	var DisplayView = function(el) {
 		extend(this, {
 			update: function(file) {
-				el.attr('href', file.url);
-				el.attr('download', file.name);
-				el.text(file.content);
+				file.url && el.attr('href', file.url);
+				file.name && el.attr('download', file.name);
+				file.content && el.text(file.content);
+				file.content.match(/^Download/) && el.css('text-decoration', 'underline');
 			}
 		});	
 	};
@@ -43,12 +66,13 @@
 		// handle drag-n-drop
 		var socket = model.socket;
 		var channel = model.channel;
-		var buffer = [];	
+		var buffer = [];
+		var chunkSize = 1024;	
 		var send = function(msg) {
 			socket.emit(channel, msg);
 		};
 		var endPoint = function(start, file) {
-			return start+250>file.size?file.size-1:start+250;
+			return start+chunkSize>file.size?file.size-1:start+chunkSize;
 		};
 		var readBlob = function(file, cb, opt_startByte, opt_stopByte) {
 			var start = opt_startByte || 0;
@@ -56,9 +80,10 @@
 			var reader = new FileReader();		
 			reader.onloadend = function(evt) {
 				if (evt.target.readyState == FileReader.DONE) {
-					var last = opt_stopByte==file.size-1;
-					var first = opt_startByte==0;
-					cb(evt.target.result, first, last);		
+					var last = end==file.size-1;
+					var first = start==0;
+					cb(evt.target.result, first, last);	
+					view.update("Sent "+Math.ceil(100*end/file.size)+"%");	
 					if( end < file.size-1 ) {
 						// recurse
 						readBlob(file, cb, end+1, endPoint(end+1, file));
@@ -71,6 +96,7 @@
 		var dropHandler = function(e) {    
 		    e.originalEvent.preventDefault();
 		    var file = e.originalEvent.dataTransfer.files[0];
+		    console.log(file.size);
 		    send({ state: 3, payload: {
 		    	size: file.size,
 		    	filename: file.name
@@ -81,7 +107,7 @@
 				var buffer = [];
 				[].push.apply(buffer, new Uint8Array(data));
 				send({
-					state: first?0:(last?2:1), 
+					state: last?2:(first?0:1), 
 					payload: buffer
 				});
 			});
@@ -113,11 +139,11 @@
 						fileWriter.onwriteend = cb;
 						fileWriter.onerror = cb;
 						fileWriter.write(blob);
-						
+						console.log(fileEntry.toURL());
 						view.update({
 							url: fileEntry.toURL(),
 							name: filename,
-							content: "Download"
+							content: "Download "+filename
 						});
 					}, errorHandler);
 				}, errorHandler);
@@ -142,6 +168,10 @@
 					buffer = [];				
 				}
 				[].push.apply(buffer, msg.payload);			
+				view.update({
+					content: Math.ceil(buffer.length/size*100)+"% Received"
+				});
+				console.log(buffer.length);
 				if( msg.state == 2 ) { // last
 					bufferHandler(buffer);
 				}
@@ -160,7 +190,7 @@
 	****************** Setup
 	************************/
 	(function() {
-		var socket = io.connect('http://localhost:8080', {
+		var socket = io.connect('http://localhost:8081', {
 			'reconnect': true,
 			'reconnection delay': 500,
 			'max reconnection attempts': 10

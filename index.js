@@ -1,4 +1,40 @@
-var io = require('socket.io').listen(8080);
+var io = require('socket.io').listen(8081, { log: false }),
+	http = require('http'),
+	fs = require('fs'),
+	crypto = require('crypto');
+	
+function nextLetter($str) {
+    return ('z' === $str ? 'a' : String.fromCharCode($str.charCodeAt(0)+1));
+}
+function getNextShortURL($s) {
+    $a = $s.split("");
+    $c = $a.length;
+    if ($s.match('/^z*$/')) { // string consists entirely of `z`
+        return Array($c + 1).join("a");
+    }
+    while ('z' === $a[--$c]) {
+        $a[$c] = nextLetter($a[$c]);
+    }
+    $a[$c] = nextLetter($a[$c]);
+    return $a.join("");
+}
+function handler (req, res) {
+	if( req.url == "/link-allocator/" ) {
+		fs.readFile(__dirname + "/shortlink.txt", function(err, data) {
+			var link = getNextShortURL(""+data||"abcd");
+			res.end(crypto.createHash('md5').update(link).digest("hex").substr(0,16));
+			fs.writeFile(__dirname + "/shortlink.txt", link);
+		});		
+	} else if( req.url == "" || req.url == "/" ) {
+		res.writeHead(200, {'Content-Type': 'text/html'});
+		fs.createReadStream(__dirname + '/home.html').pipe(res);
+	} else {
+		res.writeHead(200, {
+			"Content-Type": "text/html"
+		});
+		fs.createReadStream(__dirname + '/index.html').pipe(res);				
+	}
+}
 io.sockets.on('connection', function (socket) {
 	var channels = [];
 	var handler = function(channel) {
@@ -18,3 +54,4 @@ io.sockets.on('connection', function (socket) {
 		}
 	});
 });
+http.createServer(handler).listen(8080);
